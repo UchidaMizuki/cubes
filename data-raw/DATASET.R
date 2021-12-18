@@ -1,10 +1,13 @@
-library(tidyverse)
+# library(tidyverse)
+library(magrittr)
 
 f <- function(x, y) {
   out <- x * y
   withRestarts({
     warning(warningCondition("aaa",
                              class = "aaa"))
+    # message(structure(list(message = "aaa\n"),
+    #                   class = c("aaa", "condition")))
     out
   },
   g = function() out)
@@ -17,18 +20,18 @@ withCallingHandlers(f(2, 3),
                       invokeRestart("g")
                     })
 
-x <- expand_grid(from = factor(letters[1:10]),
+x <- tidyr::expand_grid(from = factor(letters[1:10]),
                  to = letters[1:10],
                  mode = letters[1:10]) %>%
-  mutate(value = row_number(),
-         value_2 = row_number()) %>%
-  as_house(dims = list("from", "to", "mode"))
-# dims = list(from = letters[2:4], "to"))
+  dplyr::mutate(value = dplyr::row_number(),
+         value_2 = dplyr::row_number()) %>%
+  as_cubes(dims = list("from", "to", "mode"))
 
-n <- 1e1
-x <- array(dim = c(n, n, n),
-           dimnames = list(x = 1:n,
-                           y = 1:n,
-                           z = 1:n)) %>%
-  as.table()
-as_tibble(x)
+x1 <- tidyr::expand_grid(from = factor(letters[3:12]),
+                         to = letters[3:12],
+                         mode2 = letters[3:12]) %>%
+  dplyr::mutate(value = dplyr::row_number(),
+                value_2 = dplyr::row_number()) %>%
+  as_cubes(dims = list("from", "to", "mode2"))
+
+x$value * x1$value_2

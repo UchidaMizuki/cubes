@@ -12,10 +12,17 @@ as_list_dims <- function(x) {
   x
 }
 
-head_dims <- function(dims, n = NULL) {
+size_dims <- function(x) {
+  dm <- vapply(x, length,
+               FUN.VALUE = integer(1),
+               USE.NAMES = FALSE)
+}
+
+head_cubes <- function(x, n) {
+  dims <- dimnames(x)
   n <- n %||% pillar:::get_pillar_option_print_max() + 1
 
-  dm <- purrr::map_int(dims, length)
+  dm <- size_dims(dims)
   i <- cumprod(dm) < n
   dm_head <- unname(dm[i])
 
@@ -25,11 +32,12 @@ head_dims <- function(dims, n = NULL) {
     dm_tail <- c(ceiling(n / prod(dm_head)),
                  rep(1, sum(!i) - 1))
   }
-  lapply(c(dm_head, dm_tail), seq_len)
+  args <- lapply(c(dm_head, dm_tail), seq_len)
+
+  slice(x, !!!args)
 }
 
-head_room <- function(x, n) {
-  dims <- dimnames(x)
-  dims_head <- head_dims(dims, n)
-  slice(x, !!!dims_head)
+dim_sum <- function(x) {
+  paste(dim(x),
+        collapse = " x ")
 }

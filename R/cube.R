@@ -1,9 +1,6 @@
 new_cube <- function(data, dims) {
-  dm <- purrr::map_int(dims, length)
-  for (i in seq_along(data)) {
-    data[[i]] <- array(data[[i]],
-                       dim = dm)
-  }
+  data <- array(data,
+                dim = size_dims(dims))
   structure(data,
             class = c("cube", "array"),
             dims = dims)
@@ -25,6 +22,62 @@ as_cube.array <- function(x, dims, ...) {
 
 }
 
+#' @export
+is_cube <- function(x) {
+  inherits(x, "cube")
+}
+
+#' @export
+as.array.cube <- function(x, ...) {
+  out <- unclass(x)
+  attr(out, "dims") <- NULL
+  out
+}
+
+#' @export
+dimnames.cube <- function(x) {
+  attr(x, "dims")
+}
+
+#' @export
+`dimnames<-.cube` <- function(x) {
+  attr(x, "dims") <- x
+}
+
+#' @export
+as_tibble.cube <- function(x, ...,
+                           .rows = NULL,
+                           .name_repair = c("check_unique", "unique", "universal", "minimal"),
+                           rownames = pkgconfig::get_config("tibble::rownames", NULL)) {
+  as_tibble_cubes(x,
+                  .rows = .rows,
+                  .name_repair = .name_repair,
+                  rownames = rownames)
+}
+
+#' @export
+aperm.cube <- function(a, perm, ...) {
+  aperm_cubes(a, perm)
+}
+
+
+
+# Verbs -------------------------------------------------------------------
+
+#' @export
+slice.cube <- function(.data, ...) {
+  slice_cubes(.data, ...)
+}
+
+#' @export
+select.cube <- function(.data, ...) {
+  select_cubes(.data, ...)
+}
+
+#' @export
+relocate.cube <- function(.data, ...) {
+  relocate_cubes(.data, ...)
+}
 
 
 # Printing ----------------------------------------------------------------
@@ -36,28 +89,8 @@ print.cube <- function(x, n = NULL, ...) {
 
 #' @importFrom pillar obj_sum
 #' @export
-obj_sum
-
+pillar::obj_sum
 #' @export
 obj_sum.cube <- function(x) {
-  dm <- paste(dim(x),
-              collapse = " x ")
-  paste("[cube:", dm, "]")
-}
-
-#' @importFrom pillar tbl_format_setup
-#' @export
-tbl_format_setup
-
-#' @export
-tbl_format_setup.tbl_cube <- function(x, width, ..., n, max_extra_cols, max_footer_lines) {
-  setup <- NextMethod()
-
-  # setup$tbl_sum <- c(`A house` = attr(x, "tbl_sum"))
-
-  rows_total_old <- setup$rows_total
-  rows_total_new <- attr(x, "rows_total")
-  setup$rows_total <- rows_total_new
-  setup$rows_missing <- rows_total_new - (rows_total_old - setup$rows_missing)
-  setup
+  paste0("[cube: ", dim_sum(x), "]")
 }
