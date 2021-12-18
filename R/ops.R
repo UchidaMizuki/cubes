@@ -21,7 +21,22 @@ broadcast <- function(x, dims) {
 
     # broadcast axes
     new_axes <- setdiff(names(dims), old_axes)
+    new_dims <- dims[new_axes]
 
+    for (axis in new_axes) {
+      dims <- dimnames(x)
+      along <- length(dim(x)) + 1
+
+      x <- rep(list(as.array(x)), length(new_dims[[axis]]))
+      x <- abind::abind(x,
+                        along = along)
+      x <- new_cube(x,
+                    dims = c(dims,
+                             new_dims[axis]))
+    }
+    list(result = x,
+         new_axes = new_axes,
+         new_coords = new_coords)
   }
 }
 
@@ -40,6 +55,8 @@ Ops.cube <- function(e1, e2) {
   e1 <- broadcast(e1, dims)
   e2 <- broadcast(e2, dims)
 
+  print(e1)
+  print(e2)
   stopifnot(identical(dims_e1, dims_e2))
 
   NextMethod()

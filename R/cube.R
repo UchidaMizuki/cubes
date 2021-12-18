@@ -40,8 +40,8 @@ dimnames.cube <- function(x) {
 }
 
 #' @export
-`dimnames<-.cube` <- function(x) {
-  attr(x, "dims") <- x
+`dimnames<-.cube` <- function(x, value) {
+  attr(x, "dims") <- value
 }
 
 #' @export

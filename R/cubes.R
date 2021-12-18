@@ -75,8 +75,8 @@ dimnames.cubes <- function(x) {
 }
 
 #' @export
-`dimnames<-.cubes` <- function(x) {
-  attr(x, "dims") <- x
+`dimnames<-.cubes` <- function(x, value) {
+  attr(x, "dims") <- value
 }
 
 #' @importFrom tibble as_tibble
@@ -217,7 +217,11 @@ select_cubes <- function(.data, ...) {
 
   .data <- aperm(.data,
                  perm = vars[vars %in% axes])
-  .data[vars[!vars %in% axes]]
+  if (is_cubes(.data)) {
+    .data[vars[!vars %in% axes]]
+  } else if (is_cube(.data)) {
+    .data
+  }
 }
 
 #' @importFrom dplyr relocate
@@ -241,7 +245,11 @@ relocate_cubes <- function(.data, ...) {
   axes <- names(dims)
   .data <- aperm(.data,
                  perm = vars[vars %in% axes])
-  .data[vars[!vars %in% axes]]
+  if (is_cubes(.data)) {
+    .data[vars[!vars %in% axes]]
+  } else if (is_cube(.data)) {
+    .data
+  }
 }
 
 
