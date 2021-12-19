@@ -20,6 +20,29 @@ withCallingHandlers(f(2, 3),
                       invokeRestart("g")
                     })
 
+my_factorial <- function(x) {
+  if (x == 0) {
+    out <- 1
+  } else {
+    out <- x * my_factorial(x - 1)
+  }
+
+  withRestarts({
+    warning(warningCondition("my_factorial!!!",
+                             class = "my_factorial"))
+    out
+  },
+  restart = function() out)
+}
+
+my_factorial(5)
+
+withCallingHandlers(my_factorial(5),
+                    my_factorial = function(w) {
+                      invokeRestart("restart")
+                    })
+
+
 x <- tidyr::expand_grid(from = factor(letters[1:10]),
                  to = letters[1:10],
                  mode = letters[1:10]) %>%
