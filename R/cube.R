@@ -1,29 +1,36 @@
-new_cube <- function(data, dims) {
-  dm <- unname(size_dims(dims))
+new_cube <- function(data, dims,
+                     groups = NULL) {
+  dm <- unname(lengths(dims))
   stopifnot(length(data) == prod(dm))
 
   data <- array(data,
                 dim = dm)
   structure(data,
-            class = "cubes",
-            dims = dims)
+            class = c("cubes", "array"),
+            dims = dims,
+            groups = groups)
 }
 
 cube <- function(data, dims) {
   withCallingHandlers({
-    stopifnot(is_cube(data))
+    if (rlang::is_scalar_atomic(data)) {
+      new_cube(rep(data, prod(lengths(dims))),
+               dims = dims)
+    } else {
+      stopifnot(is_cube(data))
 
-    dims_data <- dimnames(data)
-    dims <- as_list_dims(dims)
-    axes <- names(dims)
+      dims_data <- dimnames(data)
+      dims <- as_list_dims(dims)
+      axes <- names(dims)
 
-    stopifnot(names(dims_data) %in% axes)
-    dims <- lapply(axes, function(x) dims[[x]] %||% dims_data[[x]])
-    names(dims) <- axes
+      stopifnot(names(dims_data) %in% axes)
+      dims <- lapply(axes, function(x) dims[[x]] %||% dims_data[[x]])
+      names(dims) <- axes
 
-    stopifnot(!vapply(dims, is.null, FUN.VALUE = logical(1)))
+      stopifnot(!vapply(dims, is.null, FUN.VALUE = logical(1)))
 
-    broadcast(data, dims)
+      broadcast(data, dims)
+    }
   },
   warning_broadcast = function(w) invokeRestart("restart_broadcast"))
 }
@@ -38,7 +45,8 @@ as_cube.array <- function(x, dims, ...) {
   ellipsis::check_dots_empty()
 
   # TODO: named array
-  out <- new_cube(x, dims[seq_along(dim(x))])
+  out <- new_cube(x,
+                  dims = dims[seq_along(dim(x))])
   broadcast(out, dims)
 }
 
@@ -97,7 +105,8 @@ broadcast <- function(x, dims) {
       x <- rep(list(as.array(x)), length(new_dims[[axis]]))
       x <- abind::abind(x, along = along)
     }
-    x <- new_cube(x, c(dims, new_dims))
+    x <- new_cube(x,
+                  dims = c(dims, new_dims))
 
     withRestarts({
       if (vctrs::vec_is_empty(new_axes)) {
@@ -136,11 +145,11 @@ broadcast <- function(x, dims) {
 
 #' @export
 Ops.cubes <- function(e1, e2) {
-  if (is_scalar_numeric(e1)) {
+  if (rlang::is_scalar_atomic(e1)) {
     stopifnot(is_cube(e2))
 
     NextMethod()
-  } else if (is_scalar_numeric(e2)) {
+  } else if (rlang::is_scalar_atomic(e2)) {
     stopifnot(is_cube(e1))
 
     NextMethod()

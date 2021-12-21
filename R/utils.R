@@ -16,16 +16,11 @@ as_list_dims <- function(x) {
   x
 }
 
-size_dims <- function(x) {
-  vapply(x, length,
-         FUN.VALUE = integer(1))
-}
-
 head_cubes <- function(x, n) {
   dims <- dimnames(x)
   n <- n %||% pillar:::get_pillar_option_print_max() + 1
 
-  dm <- unname(size_dims(dims))
+  dm <- unname(lengths(dims))
   i <- cumprod(dm) < n
   dm_head <- unname(dm[i])
 
@@ -47,9 +42,5 @@ dim_sum <- function(dim) {
 
 format_data_frame <- function(x) {
   stopifnot(is.data.frame(x))
-  capture.output(print(x))
-}
-
-is_scalar_numeric <- function(x) {
-  rlang::is_scalar_double(x) || rlang::is_scalar_integer(x)
+  capture.output(x)
 }

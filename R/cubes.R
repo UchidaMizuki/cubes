@@ -1,5 +1,6 @@
-new_cubes <- function(data, dims) {
-  dm <- unname(size_dims(dims))
+new_cubes <- function(data, dims,
+                      groups = NULL) {
+  dm <- unname(lengths(dims))
   prod_dm <- prod(dm)
 
   for (i in seq_along(data)) {
@@ -9,8 +10,9 @@ new_cubes <- function(data, dims) {
     data[[i]] <- array(data_i, dm)
   }
   structure(data,
-            class = "cubes",
-            dims = dims)
+            class = c("cubes", "list"),
+            dims = dims,
+            groups = groups)
 }
 
 #' @export
@@ -59,12 +61,13 @@ as_cubes.data.frame <- function(x, dims, values = NULL, ...) {
   }
 
   ids <- lapply(dims, seq_along)
-  ids <- rlang::exec(expand.grid, !!!ids,
+  ids <- expand.grid(ids,
                      KEEP.OUT.ATTRS = FALSE,
                      stringsAsFactors = FALSE)
   x <- dplyr::left_join(ids, x,
                         by = axes)
-  new_cubes(as.list(x[values]), dims)
+  new_cubes(as.list(x[values]),
+            dims = dims)
 }
 
 #' @export
@@ -73,8 +76,15 @@ is_cubes <- function(x) {
 }
 
 #' @export
+as.list.cubes <- function(x, ...) {
+  structure(x,
+            class = NULL,
+            dims = NULL)
+}
+
+#' @export
 dim.cubes <- function(x) {
-  size_dims(dimnames(x))
+  lengths(dimnames(x))
 }
 
 #' @export
@@ -95,10 +105,11 @@ dimnames.cubes <- function(x) {
 #' @importFrom tibble as_tibble
 #' @export
 as_tibble.cubes <- function(x, ...) {
-  dims <- tibble::as_tibble(rlang::exec(expand.grid, !!!dimnames(x),
-                                        KEEP.OUT.ATTRS = FALSE,
-                                        stringsAsFactors = FALSE),
-                            ...)
+  dims <- expand.grid(dimnames(x),
+                      KEEP.OUT.ATTRS = FALSE,
+                      stringsAsFactors = FALSE)
+  dims <- tibble::as_tibble(dims, ...)
+
   if (is_cubes(x)) {
     tibble::tibble(dims = dims,
                    cube = as_tibble(lapply(x, as.vector)))
@@ -118,11 +129,16 @@ aperm.cubes <- function(a, perm, ...) {
     aperm(as.array.cube(x), perm)
   }
   dims <- dims[perm]
+  groups <- perm[perm %in% group_vars.cubes(a)]
 
   if (is_cubes(a)) {
-    new_cubes(lapply(a, aperm_cube), dims)
+    new_cubes(lapply(a, aperm_cube),
+              dims = dims,
+              groups = groups)
   } else if (is_cube(a)) {
-    new_cube(aperm_cube(a), dims)
+    new_cube(aperm_cube(a),
+             dims = dims,
+             groups = groups)
   }
 }
 
@@ -145,7 +161,9 @@ aperm.cubes <- function(a, perm, ...) {
 `[[.cubes` <- function(x, i) {
   out <- NextMethod()
   if (is_cubes(x)) {
-    out <- new_cube(out, dimnames(x))
+    out <- new_cube(out,
+                    dims = dimnames(x),
+                    groups = group_vars.cubes(x))
   }
   out
 }
@@ -154,7 +172,9 @@ aperm.cubes <- function(a, perm, ...) {
 `$.cubes` <- function(x, i) {
   out <- NextMethod()
   if (is_cubes(x)) {
-    out <- new_cube(out, dimnames(x))
+    out <- new_cube(out,
+                    dims = dimnames(x),
+                    groups = group_vars.cubes(x))
   }
   out
 }
@@ -167,6 +187,7 @@ aperm.cubes <- function(a, perm, ...) {
 #' @export
 slice.cubes <- function(.data, ...) {
   dots <- rlang::list2(...)
+  dots <- lapply(dots, function(x) x %||% rlang::missing_arg())
   nms_dots <- rlang::names2(dots)
 
   dims <- dimnames(.data)
@@ -179,16 +200,18 @@ slice.cubes <- function(.data, ...) {
   dims <- mapply(`[`, dims, dots,
                  SIMPLIFY = FALSE)
 
+  groups <- group_vars.cubes(.data)
+
   if (is_cubes(.data)) {
-    data <- lapply(.data, function(x) rlang::exec(`[`, x, !!!dots))
-    new_cubes(data, dims)
+    new_cubes(lapply(.data, function(x) rlang::exec(`[`, x, !!!dots)),
+              dims = dims,
+              groups = groups)
   } else if (is_cube(.data)) {
-    data <- rlang::exec(`[`, .data, !!!dots)
-    new_cube(data, dims)
+    new_cube(rlang::exec(`[`, .data, !!!dots),
+             dims = dims,
+             groups = groups)
   }
 }
-
-
 
 #' @importFrom dplyr select
 #' @export
@@ -250,6 +273,72 @@ group_by.cubes <- function(.data, ...) {
   structure(groups$data,
             groups = groups$group_names)
 }
+
+#' @importFrom dplyr mutate
+#' @export
+mutate.cubes <- function(.data, ...) {
+  dots <- rlang::enquos(..., .named = TRUE)
+  nms_dots <- names(dots)
+
+  nms_data <- names(.data)
+  dims <- dimnames(.data)
+
+  data <- lapply(seq_along(.data), function(x) .data[[x]])
+  names(data) <- nms_data
+  data <- rlang::as_data_mask(data)
+
+  size <- length(dots)
+  out <- vector("list", size)
+  for (i in seq_len(size)) {
+    out[[i]] <- cube(rlang::eval_tidy(dots[[i]], data), dims)
+  }
+  names(out) <- names(dots)
+
+  out <- c(.data[!nms_data %in% nms_dots], out)
+  new_cubes(out, dims)
+}
+
+#' @importFrom dplyr summarise
+#' @export
+summarise.cubes <- function(.data, ...) {
+  dots <- rlang::enquos(..., .named = TRUE)
+  nms_dots <- names(dots)
+  size <- length(dots)
+
+  nms_data <- names(.data)
+  dims <- dimnames(.data)
+
+  groups <- group_vars.cubes(.data)
+  ids_rem <- lapply(dims[!names(dims) %in% groups], seq_along)
+
+  ids <- expand.grid(lapply(dims[groups], seq_along),
+                     KEEP.OUT.ATTRS = FALSE,
+                     stringsAsFactors = FALSE)
+  size <- nrow(ids)
+  out <- double(size)
+  for (i in seq_len(size)) {
+    data <- rlang::exec(slice, .data, !!!c(ids[i, ], ids_rem))
+    data <- lapply(seq_along(data), function(x) data[[x]])
+    names(data) <- nms_data
+    data <- rlang::as_data_mask(data)
+
+    # cube(rlang::eval_tidy(dots[[1]], data), dims) %>%
+    #   print()
+
+    # out <- vector("list", size)
+    # for (i in seq_len(size)) {
+    #   out[[i]] <- cube(rlang::eval_tidy(dots[[i]], data), dims)
+    # }
+    # names(out) <- names(dots)
+  }
+
+
+  #
+  # out <- c(.data[!nms_data %in% nms_dots],
+  #          out)
+  # new_cubes(out, dims)
+}
+
 
 # Printing ----------------------------------------------------------------
 
